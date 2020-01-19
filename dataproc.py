@@ -49,7 +49,7 @@ Production:
 * Engineer features for current season
 """
 
-#%% 
+#%%
 
 import logging
 import os
@@ -59,9 +59,10 @@ from config import config
 import prefect
 from prefect import Flow, task, Parameter
 
+
 def make_dir_proc():
     """Returns a folder for today's run"""
-    dir_proc = os.path.join(config.get('dir', 'proc'), config.get('date', 'today'))
+    dir_proc = os.path.join(config.get("dir", "proc"), config.get("date", "today"))
     os.makedirs(dir_proc, exist_ok=True)
     return dir_proc
 
@@ -79,27 +80,34 @@ def read_in_data(fp_historical, nrows=None):
 @task
 def basic_features(df):
     # breakpoint()
-    df2 = (df.
-            rename({
-                'datetime': 'ymd_str',
-                #pg = postgame. drop any of these from the model (they're not avaiable at start of game)
+    df2 = (
+        df.rename(
+            {
+                "datetime": "ymd_str",
+                # pg = postgame. drop any of these from the model (they're not avaiable at start of game)
                 # use these for feature engineering - lag
-                'streak': 'pg_streak_str', 
-                'points_allowed': 'pg_pts_allowed',
-                'points_scored': 'pg_pts_scored',
-            }, axis=1).
-            assign(
-                win_pct = lambda x: x.wins/x.game,
-                home = lambda x: (x.location == 'Home').astype('int'),
-                pg_streak_int = lambda x: x.pg_streak_str.str.replace('L ', '-').str.replace('W ', ''),
-                result = lambda x: (x.result == 'Win').astype('int'),
-                playoffs = lambda x: x.playoffs.astype('int'),
-            ).drop(['location'], axis=1)
+                "streak": "pg_streak_str",
+                "points_allowed": "pg_pts_allowed",
+                "points_scored": "pg_pts_scored",
+            },
+            axis=1,
+        )
+        .assign(
+            win_pct=lambda x: x.wins / x.game,
+            home=lambda x: (x.location == "Home").astype("int"),
+            pg_streak_int=lambda x: x.pg_streak_str.str.replace("L ", "-").str.replace(
+                "W ", ""
+            ),
+            result=lambda x: (x.result == "Win").astype("int"),
+            playoffs=lambda x: x.playoffs.astype("int"),
+        )
+        .drop(["location"], axis=1)
     )
     return df2
 
 
 from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
+
 
 @task
 def time_features(df):
@@ -123,43 +131,55 @@ def time_features(df):
 
     # holidays
     cal = calendar()
-    holidays = cal.holidays(start=df['ymd_str'].min(), end=df['ymd_str'].max()) 
+    holidays = cal.holidays(start=df["ymd_str"].min(), end=df["ymd_str"].max())
 
-    logger.info('Creating ymdhms, can take a while')
+    logger.info("Creating ymdhms, can take a while")
     df2 = df.assign(
-        ymdhms_str = lambda x: x.ymd_str + ' ' + x.time,
-        ymdhms = lambda x: pd.to_datetime(x.ymdhms_str)
-        )
-    logger.info('Creating other time features') 
+        ymdhms_str=lambda x: x.ymd_str + " " + x.time,
+        ymdhms=lambda x: pd.to_datetime(x.ymdhms_str),
+    )
+    logger.info("Creating other time features")
     df3 = df2.assign(
         # NaT is a missing time. This creates 19.5 for 7:30. fills NaT with 7pm
-        time_int = lambda x: x.ymdhms.dt.strftime('%H').str.replace('NaT', '19').astype('int') + \
-                    x.ymdhms.dt.strftime('%M').str.replace('NaT', '00').astype('int')/60,
-        holiday = lambda x: x.ymd_str.isin(holidays).astype('int'),
+        time_int=lambda x: x.ymdhms.dt.strftime("%H")
+        .str.replace("NaT", "19")
+        .astype("int")
+        + x.ymdhms.dt.strftime("%M").str.replace("NaT", "00").astype("int") / 60,
+        holiday=lambda x: x.ymd_str.isin(holidays).astype("int"),
         # day of week. 5, 6 are sat, sun
         # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DatetimeIndex.dayofweek.html
-        dayofweek = lambda x: x.ymdhms.dt.dayofweek,
-        weekend = lambda x: x.dayofweek.isin([5, 6]) 
-    ).drop(['date', 'time'], axis=1)
+        dayofweek=lambda x: x.ymdhms.dt.dayofweek,
+        weekend=lambda x: x.dayofweek.isin([5, 6]),
+    ).drop(["date", "time"], axis=1)
     return df3
 
 
 @task
 def lagged_features(df):
     """Add lagged features"""
-    grp_cols = ['team_abbr', 'year']
-    features_to_lag = ['pg_streak_int', 'wins', 'losses', 'win_pct', 'time_int', 'ymdhms']
+    grp_cols = ["team_abbr", "year"]
+    features_to_lag = [
+        "pg_streak_int",
+        "wins",
+        "losses",
+        "win_pct",
+        "time_int",
+        "ymdhms",
+    ]
     df_lagged = df.groupby(grp_cols)[features_to_lag].shift(1)
-    df_lagged.columns = ['lag1_' + c for c in df_lagged.columns]
+    df_lagged.columns = ["lag1_" + c for c in df_lagged.columns]
     df2 = df.join(df_lagged)
 
     # Add advanced lagged features
     mask = (df2.ymdhms - df2.lag1_ymdhms).fillna(pd.Timedelta(seconds=0))
     # Converting to days:
-    df2['lag1_days_since_game'] = mask.astype('int')/1e9/60/60/24
+    df2["lag1_days_since_game"] = mask.astype("int") / 1e9 / 60 / 60 / 24
     # Drop lag on times:
-    df2 = df2.drop([c for c in df2.columns if c.startswith('lag') and 'ymdhms' in c], axis=1)
+    df2 = df2.drop(
+        [c for c in df2.columns if c.startswith("lag") and "ymdhms" in c], axis=1
+    )
     return df2
+
 
 @task
 def rolling_features(df):
@@ -175,7 +195,8 @@ def save_df(df, dir_proc, filename):
     
     TODO: Add this to a SQL database to save on memory 
     """
-    df.to_csv(os.path.join(dir_proc, f'{filename}.csv'), index=False)
+    df.to_csv(os.path.join(dir_proc, f"{filename}.csv"), index=False)
+
 
 @task
 def reshape_to_home(df):
@@ -188,64 +209,73 @@ def reshape_to_home(df):
 
     """
     # Drop anything from away that's duplicated and non-essential. Then rename to home_ and away_
-    keys = ['boxscore_index', 'year', 'ymdhms', 'team_abbr', 'opponent_abbr', 'result']
+    keys = ["boxscore_index", "year", "ymdhms", "team_abbr", "opponent_abbr", "result"]
 
     # Predictive features that are game-specific and known beforehand
     # (Don't have anything to do with the team)
     game_features = [
-        'time_int',
-        'playoffs', # TODO: add day of week 
-    ] 
-    
+        "time_int",
+        "playoffs",  # TODO: add day of week
+    ]
+
     # Team-specific features. Only use features with lags bc they're in the past
     # TODO: add rolling features
-    team_features = [c for c in df.columns if c.startswith('lag')]
+    team_features = [c for c in df.columns if c.startswith("lag")]
 
     # Produce the home dataframe
-    df_home = df.query('home == 1')[keys + game_features + team_features]
+    df_home = df.query("home == 1")[keys + game_features + team_features]
     # rename just the team features
-    df_home.columns = keys + game_features + ['home_' + c for c in df_home.columns if c in team_features]
+    df_home.columns = (
+        keys
+        + game_features
+        + ["home_" + c for c in df_home.columns if c in team_features]
+    )
 
     # Produce the away dataframe
-    df_away = df.query('home == 0')[['boxscore_index', 'team_abbr'] + team_features]
-    df_away.columns = ['boxscore_index', 'away_team_abbr'] + ['away_' + c for c in df_away.columns if c in team_features]
+    df_away = df.query("home == 0")[["boxscore_index", "team_abbr"] + team_features]
+    df_away.columns = ["boxscore_index", "away_team_abbr"] + [
+        "away_" + c for c in df_away.columns if c in team_features
+    ]
 
     # Merge the two dataframes on boxscore
-    df_out = df_home.merge(df_away, on='boxscore_index')
+    df_out = df_home.merge(df_away, on="boxscore_index")
     # SANITY CHECK: ensure the join is done properly. The away team_abbr should match the opponent of the home.
     # Since it does, we have a successful join!
-    assert (df_out.opponent_abbr != df_out.away_team_abbr).sum() == 0, 'Bad join'
-    df_out = df_out.drop(['away_team_abbr'], axis=1)
+    assert (df_out.opponent_abbr != df_out.away_team_abbr).sum() == 0, "Bad join"
+    df_out = df_out.drop(["away_team_abbr"], axis=1)
     return df_out
 
+@task
+def fp_from_dir_raw(filename):
+    return os.path.join(config.get('dir', 'raw'), filename)
 
 # Create an output folder
 dir_proc = make_dir_proc()
 
-with Flow('Process data') as flow:
+with Flow("Process data") as flow_proc:
 
-    nrow = Parameter('nrows')
-    fp_historical = os.path.join(config.get('dir', 'raw'), '_historical.csv')
-    df = read_in_data(fp_historical, nrows=nrow)
+    filename = Parameter("filename")
+    nrow = Parameter("nrows")
+
+    fp_data = fp_from_dir_raw(filename=filename)
+    df = read_in_data(fp_data, nrows=nrow)
     df2 = basic_features(df)
     df3 = time_features(df2)
     df4 = lagged_features(df3)
-    df5 = rolling_features(df4) # PLACEHOLDER - doesn't do anything yet
+    df5 = rolling_features(df4)  # PLACEHOLDER - doesn't do anything yet
     df6 = reshape_to_home(df5)
     # Save out
-    save_full_df = save_df(df5, dir_proc = dir_proc, filename='full_data')
-    save_mrd = save_df(df6, dir_proc=dir_proc, filename='mrd')
+    save_full_df = save_df(df5, dir_proc=dir_proc, filename="full_data")
+    save_mrd = save_df(df6, dir_proc=dir_proc, filename="mrd")
 
 
-if __name__ == '__main__':
-    # nrows = 10000 
-    nrows = None # none runs whole dataset
+if __name__ == "__main__":
+    # nrows = 10000
+    nrows = None  # none runs whole dataset
 
-    state = flow.run(parameters={"nrows": nrows}) #
-    fp_pdf = os.path.join(dir_proc, 'flow.dot')
-    flow.visualize(flow_state=state, filename=fp_pdf)
-
-
+    state = flow_proc.run(parameters={"nrows": nrows, "filename": "yr2020.csv"})  #
+    fp_pdf = os.path.join(dir_proc, "flow.dot")
+    flow_proc.visualize(flow_state=state, filename=fp_pdf)
 
 
 # %%

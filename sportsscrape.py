@@ -61,7 +61,7 @@ def get_list_of_team_abbrs():
 def create_year_abbr_combo(abbrs, from_year, thru_year):
     years = list(range(from_year, thru_year + 1))
     years_abbr = list(itertools.product(years, abbrs))
-    return years_abbr[0:5]
+    return years_abbr  # [0:5]
 
 
 @task
@@ -84,33 +84,41 @@ def return_schedule_dataframe(year_abbr: tuple, dir_out: str):
 
 # Triggers: https://docs.prefect.io/core/concepts/execution.html#triggers
 # run the result if any of the above mapped results are successful
-@task(trigger=any_successful)
-def concat_all_csv(dir_out):
+def concat_all_csv(dir_out, filename="yr2020"):
     df = pd.concat(map(pd.read_csv, glob.glob(f"{dir_out}/*.csv")))
-    fp_out = os.path.join(dir_out, "../_historical.csv")
+    fp_out = os.path.join(dir_out, f"../{filename}.csv")
     df.to_csv(fp_out, index=False)
+
+
+# Crate some custom tasks
+task_concat = task(concat_all_csv, trigger=any_successful)
+
+with Flow("Raw Pull") as flow_pull:
+
+    dir_out = Parameter("dir_out")
+    from_year = Parameter("from_year")
+    thru_year = Parameter("thru_year")
+
+    abbrs = get_list_of_team_abbrs()
+    year_abbrs = create_year_abbr_combo(abbrs, from_year=from_year, thru_year=thru_year)
+    dfs = return_schedule_dataframe.map(year_abbrs, dir_out=unmapped(dir_out))
+    concat = task_concat(dir_out, upstream_tasks=[dfs])
 
 
 if __name__ == "__main__":
 
-    with Flow("Raw Pull") as flow_hist:
-
-        dir_out = Parameter("dir_out")
-        abbrs = get_list_of_team_abbrs()
-        year_abbrs = create_year_abbr_combo(abbrs, from_year=1995, thru_year=2015)
-        dfs = return_schedule_dataframe.map(year_abbrs, dir_out=unmapped(dir_out))
-        concat = concat_all_csv(dir_out, upstream_tasks=[dfs])
-
     dir_out = os.path.join(config.get("dir", "raw"), config.get("date", "today"))
     os.makedirs(dir_out, exist_ok=True)
-    state = flow_hist.run(parameters={"dir_out": dir_out})
+    state = flow_pull.run(
+        parameters={"dir_out": dir_out, "from_year": 2020, "thru_year": 2020}
+    )
     # TODO: run this task after [dfs], regardless if it failed
-    flow_hist.visualize()
-    # flow_hist.visualize(flow_state=state)
+    # flow_pull.visualize()
+    flow_pull.visualize(flow_state=state)
 
-    print('Failed States:\n')
+    print("Failed States:\n")
     df_state = state.result[dfs]  # list of State objects
     for state in df_state.map_states:
         if state.is_failed():
             # the cached_inputs are the function inputs, easily retrieved
-            print(state.cached_inputs['year_abbr'].value)
+            print(state.cached_inputs["year_abbr"].value)

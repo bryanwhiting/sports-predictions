@@ -11,10 +11,7 @@ from dataproc import flow_proc
 
 
 def pull(start=2020, end=2020):
-    """Data pull
-    from_year: int
-    thru_year: int 
-    """
+    """Data pull. Specify start and end year."""
     dir_out = os.path.join(config.get("dir", "raw"), config.get("date", "today"))
     os.makedirs(dir_out, exist_ok=True)
     state = flow_pull.run(
@@ -22,8 +19,8 @@ def pull(start=2020, end=2020):
     )
 
 
-def proc(nrows=None, filename="_historical.csv"):
-    """Process the _historical data"""
+def proc(nrows: int = None, filename: str = "_historical.csv"):
+    """Process the pulled data"""
     state = flow_proc.run(parameters={"nrows": nrows, "filename": filename})
 
 

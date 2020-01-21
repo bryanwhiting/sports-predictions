@@ -19,7 +19,7 @@ def pull(start=2020, end=2020):
     )
 
 
-def proc(nrows: int = None, filename: str = "_historical.csv"):
+def proc(nrows: int = None, filename: str = "yr2020"):
     """Process the pulled data"""
     state = flow_proc.run(parameters={"nrows": nrows, "filename": filename})
 

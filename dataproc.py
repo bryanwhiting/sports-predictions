@@ -79,7 +79,6 @@ def read_in_data(fp_historical, nrows=None):
 
 @task
 def basic_features(df):
-    # breakpoint()
     df2 = (
         df.rename(
             {
@@ -87,8 +86,8 @@ def basic_features(df):
                 # pg = postgame. drop any of these from the model (they're not avaiable at start of game)
                 # use these for feature engineering - lag
                 "streak": "pg_streak_str",
-                "points_allowed": "pg_pts_allowed",
-                "points_scored": "pg_pts_scored",
+                "points_scored": "pg_score1",
+                "points_allowed": "pg_score2",
             },
             axis=1,
         )
@@ -140,6 +139,8 @@ def time_features(df):
     )
     logger.info("Creating other time features")
     df3 = df2.assign(
+        # Replace date
+        date=lambda x: x.ymdhms.dt.date,
         # NaT is a missing time. This creates 19.5 for 7:30. fills NaT with 7pm
         time_int=lambda x: x.ymdhms.dt.strftime("%H")
         .str.replace("NaT", "19")
@@ -150,7 +151,12 @@ def time_features(df):
         # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DatetimeIndex.dayofweek.html
         dayofweek=lambda x: x.ymdhms.dt.dayofweek,
         weekend=lambda x: x.dayofweek.isin([5, 6]),
-    ).drop(["date", "time"], axis=1)
+
+        # TODO: weeks since start of season
+        # this is complex - you have to do a groupby seaons to get this
+        # season_week = lambda x: (x.date - x.date.min).apply(lambda y: y.days//7)
+    ).drop(["time"], axis=1)
+
     return df3
 
 
@@ -160,6 +166,8 @@ def lagged_features(df):
     grp_cols = ["team_abbr", "year"]
     features_to_lag = [
         "pg_streak_int",
+        "pg_score1",
+        "pg_score2",
         "wins",
         "losses",
         "win_pct",
@@ -189,14 +197,6 @@ def rolling_features(df):
     return df
 
 
-@task
-def save_df(df, dir_proc, filename):
-    """Save out the full and model-ready datasets to data/proc/YYYY-MM-DD/filename.csv
-    
-    TODO: Add this to a SQL database to save on memory 
-    """
-    df.to_csv(os.path.join(dir_proc, f"{filename}.csv"), index=False)
-
 
 @task
 def reshape_to_home(df):
@@ -209,7 +209,17 @@ def reshape_to_home(df):
 
     """
     # Drop anything from away that's duplicated and non-essential. Then rename to home_ and away_
-    keys = ["boxscore_index", "year", "ymdhms", "team_abbr", "opponent_abbr", "result"]
+    keys = [
+        "boxscore_index",
+        "year",
+        "date",
+        "ymdhms",
+        "team_abbr",
+        "opponent_abbr",
+        "result",
+        "pg_score1",
+        "pg_score2", 
+    ]
 
     # Predictive features that are game-specific and known beforehand
     # (Don't have anything to do with the team)
@@ -228,13 +238,13 @@ def reshape_to_home(df):
     df_home.columns = (
         keys
         + game_features
-        + ["home_" + c for c in df_home.columns if c in team_features]
+        + ["team1_" + c for c in df_home.columns if c in team_features]
     )
 
     # Produce the away dataframe
     df_away = df.query("home == 0")[["boxscore_index", "team_abbr"] + team_features]
     df_away.columns = ["boxscore_index", "away_team_abbr"] + [
-        "away_" + c for c in df_away.columns if c in team_features
+        "team2_" + c for c in df_away.columns if c in team_features
     ]
 
     # Merge the two dataframes on boxscore
@@ -243,20 +253,43 @@ def reshape_to_home(df):
     # Since it does, we have a successful join!
     assert (df_out.opponent_abbr != df_out.away_team_abbr).sum() == 0, "Bad join"
     df_out = df_out.drop(["away_team_abbr"], axis=1)
+
+    # Final Renaming
+    df_out = df_out.rename(
+        {"team_abbr": "team1", "opponent_abbr": "team2", "ymdhms": "datetime"}, axis=1
+    )
+
+    # Sort the dataset
+    df_out = df_out.sort_values(['datetime', 'boxscore_index'])
     return df_out
+
 
 @task
 def fp_from_dir_raw(filename):
-    return os.path.join(config.get('dir', 'raw'), filename)
+    return os.path.join(config.get("dir", "raw"), f"{filename}.csv")
+
+
+@task
+def save_df(df, dir_proc, filename, bool_mrd=True):
+    """Save out the full and model-ready datasets to data/proc/YYYY-MM-DD/filename.csv
+    
+    TODO: Add this to a SQL database to save on memory 
+    """
+    if bool_mrd:
+        df.to_csv(os.path.join(dir_proc, f"mrd_{filename}.csv"), index=False)
+    else:
+        df.to_csv(os.path.join(dir_proc, f"full_{filename}.csv"), index=False)
+
+
 
 # Create an output folder
-dir_proc = make_dir_proc()
+dir_proc_today = make_dir_proc()
+dir_proc = config.get('dir', 'proc')
 
 with Flow("Process data") as flow_proc:
 
     filename = Parameter("filename")
     nrow = Parameter("nrows")
-
     fp_data = fp_from_dir_raw(filename=filename)
     df = read_in_data(fp_data, nrows=nrow)
     df2 = basic_features(df)
@@ -265,15 +298,16 @@ with Flow("Process data") as flow_proc:
     df5 = rolling_features(df4)  # PLACEHOLDER - doesn't do anything yet
     df6 = reshape_to_home(df5)
     # Save out
-    save_full_df = save_df(df5, dir_proc=dir_proc, filename="full_data")
-    save_mrd = save_df(df6, dir_proc=dir_proc, filename="mrd")
+    for _dir in [dir_proc, dir_proc_today]:
+        save_full_df = save_df(df5, dir_proc=_dir, filename=filename, bool_mrd=False)
+        save_mrd = save_df(df6, dir_proc=_dir, filename=filename, bool_mrd=True)
 
 
 if __name__ == "__main__":
     # nrows = 10000
     nrows = None  # none runs whole dataset
 
-    state = flow_proc.run(parameters={"nrows": nrows, "filename": "yr2020.csv"})  #
+    state = flow_proc.run(parameters={"nrows": nrows, "filename": "yr2020"})  #
     fp_pdf = os.path.join(dir_proc, "flow.dot")
     flow_proc.visualize(flow_state=state, filename=fp_pdf)
 

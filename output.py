@@ -10,14 +10,41 @@ produce markdown
     - Group by season_week, calculate accuracy for all model types.
 
 """
-from config import config, save
+from config import config, save, load
 import pandas as pd
 import numpy as np
 from prefect import task, Flow
 from datetime import date
 from sklearn.metrics import accuracy_score
+from matplotlib import pyplot
 
+from xgboost import plot_importance
 # @task
+def plot_imp():
+    xgb = load(dir='model', filename='model_result')
+    plot_importance(xgb, importance_type='gain')
+    pyplot.show()
+
+def score_df():
+    """ Load in the MRD and score"""
+    X = df.drop(config.drop_cols + config.targets, axis=1)
+
+    # Binary predictions. Add model objects here
+    for model in ['result_v01', 'result_v02']:
+        xgb = load(dir='model', filename=f'model_{model}') 
+        # Extract the features used in the model
+        feats = xgb.get_booster().feature_names
+        X_mod = X[feats]
+        # Predict only on the model's features
+        df[f'{model}_score'] = pd.DataFrame(xgb.predict_proba(X_mod))[1]
+        df[f'pred_{model}_score'] = xgb.predict(X_mod)
+        df[f'acc_pred_{model}_score'] = xgb.predict(X_mod) == df.result
+
+    # Spread model 
+    # xgb_spread = load(dir='model', filename='model_pg_spread')
+    # df['v01_spread'] = xgb_spread.predict(X)
+    return df
+
 def df_with_538():
     """Create a combined dataset
     Pulls from mrd_yr2020 and 538, checks they have the same scores
@@ -26,13 +53,14 @@ def df_with_538():
     df5 = pd.read_csv('https://projects.fivethirtyeight.com/nba-model/nba_elo_latest.csv')
     df5 = df5[['date', 'team1', 'team2', 'elo_prob1', 'carm-elo_prob1', 'raptor_prob1', 'score1', 'score2']]
     """
-    # 538 dataset:
-    df5 = pd.read_csv('https://projects.fivethirtyeight.com/nba-model/nba_elo_latest.csv')
-    df5 = df5[['date', 'team1', 'team2', 'elo_prob1', 'carm-elo_prob1', 'raptor_prob1', 'score1', 'score2']]
     # My MRD
     mrd2020 = config.get('dir', 'mrd2020')
     df = pd.read_csv(mrd2020)
-    df = df[df.date < config.get('date', 'today')]
+    
+    # 538 dataset:
+    df5 = pd.read_csv('https://projects.fivethirtyeight.com/nba-model/nba_elo_latest.csv')
+    df5 = df5[['date', 'team1', 'team2', 'elo_prob1', 'carm-elo_prob1', 'raptor_prob1', 'score1', 'score2']]
+    # Combined 
     df = df.merge(df5, on=['date', 'team1', 'team2'])
 
     if len(df[df['pg_score1'] != df['score1']]) > 0:
@@ -68,8 +96,19 @@ def breakdown_accuracy(df, result, proba, pred, name):
     return df_acc
 
 # @task
-def benchmark_winpct(df):
-    """Extract the win percentage"""
+def benchmark_model_accuracy(df):
+    """Extract the win percentage
+    
+    Compare accuracy with result.mean
+    x = df[(df.elo_prob1 > 0.2) & (df.elo_prob1 < 0.3)]
+    # Accuracy:
+    print(accuracy_score(x.result, x.elo_prob1 > .5))
+    print(x.result == (x.elo_prob1 > 0.5).astype('int'))
+    # Calibration (should be between 0.2 and 0.3 if calibrated)
+    print(x.result.mean())
+    """
+
+    df = df[df.date < config.get('date', 'today')]
 
     # home team win pct
     acc_home = df.result.mean() 
@@ -88,6 +127,11 @@ def benchmark_winpct(df):
     }, index=['home_overall', 'home_vs_away_winpct']),
     sort=False)
 
+    # Add Bryan's predictions
+    for ver in ['v01', 'v02']:
+        acc_ver = breakdown_accuracy(df, result='result', proba=f'result_{ver}_score', pred=f'pred_result_{ver}_score', name=ver)
+        df_acc = df_acc.append(acc_ver)
+
     # Does prediction improve after filtering out first month?
     # df = df[df.ymdhms > '2019-12-01']
     # pred = (df['home_lag1_win_pct'] > .5).astype('int')
@@ -97,23 +141,9 @@ def benchmark_winpct(df):
     # pred = 1-(df['away_lag1_win_pct'] > .5).astype('int')
     # accuracy_score(y_true=df.result, y_pred=pred)
 
-    return df_acc
-
-# @task
-def benchmark_538(df):
-    """
-    Compare accuracy with result.mean
-    x = df[(df.elo_prob1 > 0.2) & (df.elo_prob1 < 0.3)]
-    # Accuracy:
-    print(accuracy_score(x.result, x.elo_prob1 > .5))
-    print(x.result == (x.elo_prob1 > 0.5).astype('int'))
-    # Calibration (should be between 0.2 and 0.3 if calibrated)
-    print(x.result.mean())
-    """
+    # Five-thirty-eight models
     # Compare Nate Silver's results
-
     models = ['elo', 'carm-elo', 'raptor']
-    df_acc = pd.DataFrame()
     for model in models:
         df[f'pred_{model}'] = (df[f'{model}_prob1'] > .5).astype('int')
         acc = breakdown_accuracy(df, result='result', proba=f'{model}_prob1', pred=f'pred_{model}', name=model)
@@ -122,7 +152,8 @@ def benchmark_538(df):
         # Save out binary accuracy for groupby-accuracy by season_week later
         df[f'acc_pred_{model}'] = (df[f'pred_{model}'] == df['result']).astype('int')
 
-    return df_acc
+
+    return df_acc.transpose().fillna('')
 
 # @task
 def week_accuracies(df):
@@ -142,28 +173,21 @@ def week_accuracies(df):
     df_upto_week = df_upto_week[['season_week'] + pred_cols]
     return (df_within_week, df_upto_week)
 
-# @task
-def combine_benchmarks(df_acc1, df_acc2):
-    df_acc = df_acc1.append(df_acc2).transpose().fillna('')
-    return df_acc
-
-
 @task
 def main():
     df = df_with_538()
+    df_scored = score_df(df)
     # Each of these functions is updating df
-    df_acc1 = benchmark_winpct(df)
-    df_acc2 = benchmark_538(df)
-    df_acc = combine_benchmarks(df_acc1, df_acc2)
+    df_acc = benchmark_model_accuracy(df_scored)
     # pandas groupby means
-    df_within_week, df_upto_week = week_accuracies(df)
+    df_within_week, df_upto_week = week_accuracies(df538)
     # Save out
-    save(df_acc, dir='output', filename='acc_overall', main=True, date=True)
-    save(df_within_week, dir='output', filename='acc_within_week', main=True, date=True)
-    save(df_upto_week, dir='output', filename='acc_upto_week', main=True, date=True)
+    save(df_acc, dir='output', filename='acc_overall', ext='.csv', main=True, date=True)
+    save(df_within_week, dir='output', filename='acc_within_week', ext='.csv', main=True, date=True)
+    save(df_upto_week, dir='output', filename='acc_upto_week', ext='.csv', main=True, date=True)
 
 
-with Flow('Benchmarks') as flow_bench:
+with Flow('Benchmarks') as flow_output:
     # NOTE TO SELF:
     # I didn't use prefect for individual tasks becasue I saw
     # some reallys trange behavior where the accuracies weren't saving out
@@ -173,6 +197,6 @@ with Flow('Benchmarks') as flow_bench:
 
 
 if __name__ == "__main__":
-    state = flow_bench.run()
+    state = flow_output.run()
     # Debug:
     # state.result[df_weeks].result

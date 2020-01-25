@@ -92,6 +92,7 @@ def basic_features(df):
             axis=1,
         )
         .assign(
+            pg_spread=lambda x: x.pg_score1 - x.pg_score2,
             win_pct=lambda x: x.wins / x.game,
             home=lambda x: (x.location == "Home").astype("int"),
             pg_streak_int=lambda x: x.pg_streak_str.str.replace("L ", "-").str.replace(
@@ -168,6 +169,7 @@ def lagged_features(df):
         "pg_streak_int",
         "pg_score1",
         "pg_score2",
+        "pg_spread",
         "wins",
         "losses",
         "win_pct",
@@ -194,6 +196,34 @@ def rolling_features(df):
     # Add rolling features
     # TODO?? how do I do this?
     # df3.groupby(['team_abbr', 'year'])['wins'].rolling(1).mean().reset_index()
+
+    df = df.sort_values(['year', 'team_abbr', 'ymdhms']).reset_index(drop=True)
+
+    # Groupby keys:
+    grp = ['year', 'team_abbr']
+
+    # Cumulative features (since start)
+    cumfeats = ['pg_score1', 'pg_score2', 'pg_spread', 'weekend']
+    # use .shift() because you want the lag.
+    for stat in ['sum', 'mean', 'max']:
+        cum = df.groupby(grp)[cumfeats].expanding().agg(stat).reset_index(drop=True).shift()
+        cum.columns = [f'lag1_cum{stat}_' + c for c in cum.columns]
+        # cbind the datafarmes
+        df = pd.concat([df, cum], axis=1)
+
+    # Rolling windows. min_periods=3 would require 3 values (starting values would be NA)
+    feats = ['result', 'pg_score1', 'pg_score2', 'pg_spread', 'home', 'weekend', 'time_int']
+    # It's easier to just loop over everything, even if mean(home) and sum(home) mean the same thing to a GBM
+    for stat in ['sum', 'mean', 'max']:
+        for i in [3, 7, 15]:
+            # compute the stat and lag of the features over last i days
+            n = df.groupby(grp)[feats].rolling(window=i, min_periods=1).agg(stat).shift().reset_index(drop=True)
+            n.columns = [f'lag1_{stat}{i}game_' + c for c in n.columns]
+            df = pd.concat([df, n], axis=1)
+
+    #TODO; Count number of games in last X days
+    # https://stackoverflow.com/questions/44739171/pandas-count-number-of-occurrence-in-past-n-days-meeting-certain-conditions
+
     return df
 
 
@@ -219,6 +249,7 @@ def reshape_to_home(df):
         "result",
         "pg_score1",
         "pg_score2", 
+        'pg_spread'
     ]
 
     # Predictive features that are game-specific and known beforehand
@@ -226,6 +257,9 @@ def reshape_to_home(df):
     game_features = [
         "time_int",
         "playoffs",  # TODO: add day of week
+        "game", # game number
+        'dayofweek', 
+        'weekend'
     ]
 
     # Team-specific features. Only use features with lags bc they're in the past

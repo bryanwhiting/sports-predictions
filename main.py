@@ -9,6 +9,8 @@ import os
 from sportsscrape import flow_pull
 from dataproc import flow_proc
 from output import flow_output
+from rmarkdown import flow_rmd
+
 
 def pull(start=2020, end=2020):
     """Data pull. Specify start and end year."""
@@ -19,7 +21,7 @@ def pull(start=2020, end=2020):
     )
 
 
-def proc(nrows: int = None, past: int = None ):
+def proc(nrows: int = None, past: int = None):
     """Process the pulled data
 
     Process historical data: 
@@ -29,13 +31,18 @@ def proc(nrows: int = None, past: int = None ):
     python main.py proc
     """
     if past == 1:
-        filename = 'historical'
+        filename = "historical"
     else:
-        filename = 'yr2020'
+        filename = "yr2020"
     state = flow_proc.run(parameters={"nrows": nrows, "filename": filename})
+
 
 def results():
     flow_output.run()
+
+
+def rmarkdown():
+    flow_rmd.run()
 
 
 def run(d=1, p=1, r=1):
@@ -45,15 +52,18 @@ def run(d=1, p=1, r=1):
     p: process
     r: output - scores and gets accuracy 
     """
-    if d==1:
+    if d == 1:
         pull()
-    if p == 1: 
+    if p == 1:
         proc()
     if r == 1:
         results()
+    if rmd == 1:
+        rmarkdown()
+
 
 if __name__ == "__main__":
     # python flows.py pull --thru-year
     fire.Fire(
-        {"pull": pull, "proc": proc, 'results': results, 'run': run}
+        {"pull": pull, "proc": proc, "results": results, "rmd": rmarkdown, "run": run,}
     )

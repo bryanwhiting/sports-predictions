@@ -152,7 +152,6 @@ def time_features(df):
         # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DatetimeIndex.dayofweek.html
         dayofweek=lambda x: x.ymdhms.dt.dayofweek,
         weekend=lambda x: x.dayofweek.isin([5, 6]),
-
         # TODO: weeks since start of season
         # this is complex - you have to do a groupby seaons to get this
         # season_week = lambda x: (x.date - x.date.min).apply(lambda y: y.days//7)
@@ -197,35 +196,54 @@ def rolling_features(df):
     # TODO?? how do I do this?
     # df3.groupby(['team_abbr', 'year'])['wins'].rolling(1).mean().reset_index()
 
-    df = df.sort_values(['year', 'team_abbr', 'ymdhms']).reset_index(drop=True)
+    df = df.sort_values(["year", "team_abbr", "ymdhms"]).reset_index(drop=True)
 
     # Groupby keys:
-    grp = ['year', 'team_abbr']
+    grp = ["year", "team_abbr"]
 
     # Cumulative features (since start)
-    cumfeats = ['pg_score1', 'pg_score2', 'pg_spread', 'weekend']
+    cumfeats = ["pg_score1", "pg_score2", "pg_spread", "weekend"]
     # use .shift() because you want the lag.
-    for stat in ['sum', 'mean', 'max']:
-        cum = df.groupby(grp)[cumfeats].expanding().agg(stat).reset_index(drop=True).shift()
-        cum.columns = [f'lag1_cum{stat}_' + c for c in cum.columns]
+    for stat in ["sum", "mean", "max"]:
+        cum = (
+            df.groupby(grp)[cumfeats]
+            .expanding()
+            .agg(stat)
+            .reset_index(drop=True)
+            .shift()
+        )
+        cum.columns = [f"lag1_cum{stat}_" + c for c in cum.columns]
         # cbind the datafarmes
         df = pd.concat([df, cum], axis=1)
 
     # Rolling windows. min_periods=3 would require 3 values (starting values would be NA)
-    feats = ['result', 'pg_score1', 'pg_score2', 'pg_spread', 'home', 'weekend', 'time_int']
+    feats = [
+        "result",
+        "pg_score1",
+        "pg_score2",
+        "pg_spread",
+        "home",
+        "weekend",
+        "time_int",
+    ]
     # It's easier to just loop over everything, even if mean(home) and sum(home) mean the same thing to a GBM
-    for stat in ['sum', 'mean', 'max']:
+    for stat in ["sum", "mean", "max"]:
         for i in [3, 7, 15]:
             # compute the stat and lag of the features over last i days
-            n = df.groupby(grp)[feats].rolling(window=i, min_periods=1).agg(stat).shift().reset_index(drop=True)
-            n.columns = [f'lag1_{stat}{i}game_' + c for c in n.columns]
+            n = (
+                df.groupby(grp)[feats]
+                .rolling(window=i, min_periods=1)
+                .agg(stat)
+                .shift()
+                .reset_index(drop=True)
+            )
+            n.columns = [f"lag1_{stat}{i}game_" + c for c in n.columns]
             df = pd.concat([df, n], axis=1)
 
-    #TODO; Count number of games in last X days
+    # TODO; Count number of games in last X days
     # https://stackoverflow.com/questions/44739171/pandas-count-number-of-occurrence-in-past-n-days-meeting-certain-conditions
 
     return df
-
 
 
 @task
@@ -248,8 +266,8 @@ def reshape_to_home(df):
         "opponent_abbr",
         "result",
         "pg_score1",
-        "pg_score2", 
-        'pg_spread'
+        "pg_score2",
+        "pg_spread",
     ]
 
     # Predictive features that are game-specific and known beforehand
@@ -257,9 +275,9 @@ def reshape_to_home(df):
     game_features = [
         "time_int",
         "playoffs",  # TODO: add day of week
-        "game", # game number
-        'dayofweek', 
-        'weekend'
+        "game",  # game number
+        "dayofweek",
+        "weekend",
     ]
 
     # Team-specific features. Only use features with lags bc they're in the past
@@ -294,7 +312,7 @@ def reshape_to_home(df):
     )
 
     # Sort the dataset
-    df_out = df_out.sort_values(['datetime', 'boxscore_index'])
+    df_out = df_out.sort_values(["datetime", "boxscore_index"])
     return df_out
 
 
@@ -315,10 +333,9 @@ def save_df(df, dir_proc, filename, bool_mrd=True):
         df.to_csv(os.path.join(dir_proc, f"full_{filename}.csv"), index=False)
 
 
-
 # Create an output folder
 dir_proc_today = make_dir_proc()
-dir_proc = config.get('dir', 'proc')
+dir_proc = config.get("dir", "proc")
 
 with Flow("Process data") as flow_proc:
 

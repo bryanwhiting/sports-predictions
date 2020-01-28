@@ -25,7 +25,7 @@ def plot_imp():
     plot_importance(xgb, importance_type='gain')
     pyplot.show()
 
-def score_df():
+def score_df(df):
     """ Load in the MRD and score"""
     X = df.drop(config.drop_cols + config.targets, axis=1)
 
@@ -36,9 +36,11 @@ def score_df():
         feats = xgb.get_booster().feature_names
         X_mod = X[feats]
         # Predict only on the model's features
-        df[f'{model}_score'] = pd.DataFrame(xgb.predict_proba(X_mod))[1]
-        df[f'pred_{model}_score'] = xgb.predict(X_mod)
-        df[f'acc_pred_{model}_score'] = xgb.predict(X_mod) == df.result
+        df[f'{model}_prob1'] = pd.DataFrame(xgb.predict_proba(X_mod))[1]
+        # TODO: Optimize threshold on 2019 data to maximize accuracy.
+        # TODO: consider other metrics beyond accuracy to measure.
+        df[f'pred_{model}_prob1'] = xgb.predict(X_mod) 
+        df[f'acc_pred_{model}_prob1'] = xgb.predict(X_mod) == df.result
 
     # Spread model 
     # xgb_spread = load(dir='model', filename='model_pg_spread')
@@ -73,13 +75,16 @@ def df_with_538():
     df = df.drop(['score1', 'score2'], axis=1)
 
     # Calculate season_week
-    df['season_week'] = (pd.to_datetime(df.date).dt.date - date(2019, 10, 20)).apply(lambda x: x.days//7)
+    df['season_week'] = (pd.to_datetime(df.date).dt.date - date(2019, 10, 20)).apply(lambda x: x.days//7) + 1
     return df
 
 
 def breakdown_accuracy(df, result, proba, pred, name):
     """Take a model score and break it down.
     pred is a 0/1 column, where proba is the probabilty score for home team/team1"""
+
+    # Filter just to today's date
+    df = df[df.date < config.get('date', 'today')].copy()
     acc = {}
     acc['all'] = [accuracy_score(y_true = df[result], y_pred = df[pred])]
     for i in np.arange(0.0, 1.0, 0.1):
@@ -108,20 +113,21 @@ def benchmark_model_accuracy(df):
     print(x.result.mean())
     """
 
-    df = df[df.date < config.get('date', 'today')]
-
-    # home team win pct
-    acc_home = df.result.mean() 
-
     # Prediction = Home team win pct > 0.5
     df['pred_home_winpct'] = (df['team1_lag1_win_pct'] > 0.5).astype('int')
-    acc_home_win_pct = breakdown_accuracy(df, result='result', proba='team1_lag1_win_pct', pred='pred_home_winpct', name='home_winpct')
     df['acc_pred_home_winpct'] = (df['result'] == df['pred_home_winpct']).astype('int')
+    
+    acc_home_win_pct = breakdown_accuracy(df, result='result', proba='team1_lag1_win_pct', pred='pred_home_winpct', name='home_winpct')
 
-    # home win pct > away win pct
-    pred = (df['team1_lag1_win_pct'] > df['team2_lag1_win_pct']).astype('int')
-    acc_home_vs_away = accuracy_score(y_true=df.result, y_pred=pred)
+    # Don't use breakdown_accuracy() function for these simple aggregates
+    df_tmp = df[df.date < config.get('date', 'today')].copy()
+    # home team win pct
+    acc_home = df_tmp.result.mean() 
+    # home win pct > away win pct.
+    pred = (df_tmp['team1_lag1_win_pct'] > df_tmp['team2_lag1_win_pct']).astype('int')
+    acc_home_vs_away = accuracy_score(y_true=df_tmp.result, y_pred=pred)
 
+    # Combine all accuracies
     df_acc = acc_home_win_pct.append(pd.DataFrame({
         'all': [acc_home, acc_home_vs_away]
     }, index=['home_overall', 'home_vs_away_winpct']),
@@ -129,7 +135,7 @@ def benchmark_model_accuracy(df):
 
     # Add Bryan's predictions
     for ver in ['v01', 'v02']:
-        acc_ver = breakdown_accuracy(df, result='result', proba=f'result_{ver}_score', pred=f'pred_result_{ver}_score', name=ver)
+        acc_ver = breakdown_accuracy(df, result='result', proba=f'result_{ver}_prob1', pred=f'pred_result_{ver}_prob1', name=ver)
         df_acc = df_acc.append(acc_ver)
 
     # Does prediction improve after filtering out first month?
@@ -152,11 +158,15 @@ def benchmark_model_accuracy(df):
         # Save out binary accuracy for groupby-accuracy by season_week later
         df[f'acc_pred_{model}'] = (df[f'pred_{model}'] == df['result']).astype('int')
 
-
-    return df_acc.transpose().fillna('')
+    # reset index because rownames contain the accuracy breakdowns
+    df_acc = df_acc.transpose().fillna('').reset_index()
+    return df, df_acc
 
 # @task
 def week_accuracies(df):
+
+    # Filter just to today's copy
+    df = df[df.date < config.get('date', 'today')]
     pred_cols = [c for c in df.columns if c.startswith('acc_pred_')]
     # Within-week accuracies
     df_within_week =  (df.groupby(['season_week'])[pred_cols].mean().reset_index())
@@ -173,15 +183,31 @@ def week_accuracies(df):
     df_upto_week = df_upto_week[['season_week'] + pred_cols]
     return (df_within_week, df_upto_week)
 
+def save_scores(df):
+    # attributes to save
+    keep_cols = ['datetime', 'season_week', 'team1', 'team2', 'result', 'pg_score1', 'pg_score2',  'elo_prob1', 'carm-elo_prob1', 'raptor_prob1']
+    # my models
+    keep_cols += [c for c in df.columns if c.startswith('result_') and c.endswith('prob1')]
+    # 
+    df_out = df[keep_cols].sort_values(['datetime', 'team1'])
+    df_out.loc[df_out.datetime >= config.get('date', 'today'), 'result'] = ''
+    df_out = df_out.fillna('')
+    # View today's games
+    # df_out[df_out.datetime >= config.get('date', 'today')].head(20)
+    save(df_out, dir='output', filename='all_scores', ext='.csv', main=True, date=False)
+
 @task
 def main():
     df = df_with_538()
     df_scored = score_df(df)
     # Each of these functions is updating df
-    df_acc = benchmark_model_accuracy(df_scored)
+    df_scored2, df_acc = benchmark_model_accuracy(df_scored)
     # pandas groupby means
-    df_within_week, df_upto_week = week_accuracies(df538)
+    df_within_week, df_upto_week = week_accuracies(df_scored2)
+
     # Save out
+    save_scores(df_scored)
+
     save(df_acc, dir='output', filename='acc_overall', ext='.csv', main=True, date=True)
     save(df_within_week, dir='output', filename='acc_within_week', ext='.csv', main=True, date=True)
     save(df_upto_week, dir='output', filename='acc_upto_week', ext='.csv', main=True, date=True)

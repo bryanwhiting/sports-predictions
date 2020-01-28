@@ -45,25 +45,26 @@ def rmarkdown():
     flow_rmd.run()
 
 
-def run(d=1, p=1, r=1):
+def run(d=1, p=1, o=1, r=1):
     """Do a daily run
     d: int 
         download
     p: process
-    r: output - scores and gets accuracy 
+    o: output - scores and gets accuracy 
+    r: rmarkdown
     """
     if d == 1:
         pull()
     if p == 1:
         proc()
-    if r == 1:
+    if o == 1:
         results()
-    if rmd == 1:
+    if r == 1:
         rmarkdown()
 
 
 if __name__ == "__main__":
-    # python flows.py pull --thru-year
+    # python main.py run
     fire.Fire(
         {"pull": pull, "proc": proc, "results": results, "rmd": rmarkdown, "run": run,}
     )

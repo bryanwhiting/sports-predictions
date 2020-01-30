@@ -5,15 +5,14 @@ from configparser import ConfigParser
 from datetime import datetime
 
 today = datetime.now().strftime("%Y-%m-%d")
+dir_root = str(pathlib.Path(__file__).parent.absolute())
 
 # Create the config
 config = ConfigParser(default_section="default")
-dir_root = os.path.expanduser("~/github/sports-predictions")
 config.read(os.path.join(dir_root, "rsc/config.cfg"))
 
 # Update
-dir_of_this_file = str(pathlib.Path(__file__).parent.absolute())
-config.set("dir", "home", dir_of_this_file)
+config.set("dir", "home", dir_root)
 print("Home dir set to:", config.get("dir", "home"))
 
 # Dates

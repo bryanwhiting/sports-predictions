@@ -39,6 +39,3 @@ def all_team_names(url_root):
 team_names = all_team_names(url_root)
 
 #
-
-
-r2 = requests.get(url)

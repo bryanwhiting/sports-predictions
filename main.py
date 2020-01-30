@@ -16,9 +16,7 @@ def pull(start=2020, end=2020):
     """Data pull. Specify start and end year."""
     dir_out = os.path.join(config.get("dir", "raw"), config.get("date", "today"))
     os.makedirs(dir_out, exist_ok=True)
-    flow_pull.run(
-        parameters={"dir_out": dir_out, "from_year": start, "thru_year": end}
-    )
+    flow_pull.run(parameters={"dir_out": dir_out, "from_year": start, "thru_year": end})
 
 
 def proc(nrows: int = None, past: int = None):

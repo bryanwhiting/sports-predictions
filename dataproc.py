@@ -29,7 +29,6 @@ Steps:
 
 * Reshape data to be focused on home team only
     - This involves a self join. All opponent data needs to be renamed to opp_data.
-    - 
 * Save data out
 
 Future:
@@ -49,11 +48,9 @@ Production:
 * Engineer features for current season
 """
 
-#%%
-
-import logging
 import os
 import pandas as pd
+from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
 from config import config
 
 import prefect
@@ -106,14 +103,11 @@ def basic_features(df):
     return df2
 
 
-from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
-
-
 @task
 def time_features(df):
     """Time features
 
-    TODO: Consider adding all game-specific features here? 
+    TODO: Consider adding all game-specific features here?
     """
     logger = prefect.context.get("logger")
 
@@ -250,7 +244,7 @@ def rolling_features(df):
 def reshape_to_home(df):
     """Reshape the final dataset to be specifically for the home team
 
-    Easily join on the boxscore_index FTW!!! 
+    Easily join on the boxscore_index FTW!!!
 
     # Lets you see both home and away teams for a game
     df4[df4.boxscore_index == '201410310MIL']
@@ -324,8 +318,8 @@ def fp_from_dir_raw(filename):
 @task
 def save_df(df, dir_proc, filename, bool_mrd=True):
     """Save out the full and model-ready datasets to data/proc/YYYY-MM-DD/filename.csv
-    
-    TODO: Add this to a SQL database to save on memory 
+
+    TODO: Add this to a SQL database to save on memory
     """
     if bool_mrd:
         df.to_csv(os.path.join(dir_proc, f"mrd_{filename}.csv"), index=False)

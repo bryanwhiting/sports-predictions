@@ -2,7 +2,7 @@
 produce markdown
 
 1. Read in 2020 data
-2. 
+2.
 
 # Todo:
 - Make graph of accuracy over time
@@ -17,8 +17,8 @@ from prefect import task, Flow
 from datetime import date
 from sklearn.metrics import accuracy_score
 from matplotlib import pyplot
-
 from xgboost import plot_importance
+
 
 # @task
 def plot_imp():
@@ -122,7 +122,7 @@ def breakdown_accuracy(df, result, proba, pred, name):
 # @task
 def benchmark_model_accuracy(df):
     """Extract the win percentage
-    
+
     Compare accuracy with result.mean
     x = df[(df.elo_prob1 > 0.2) & (df.elo_prob1 < 0.3)]
     # Accuracy:

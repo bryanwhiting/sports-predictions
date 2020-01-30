@@ -16,7 +16,6 @@ XGboost Dask-ml breaks this:
 
 import os
 from config import config, save, load
-import joblib
 import pandas as pd
 import scipy.stats as st
 import xgboost
@@ -25,7 +24,6 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 
 # from xgboost.sklearn import XGBRegressor
 # pip install scikit-learn==0.18.2 - required for shap compatibility
-import sklearn
 import shap
 from matplotlib import pyplot
 import matplotlib.pyplot as plt
@@ -153,7 +151,7 @@ def plot_convergence(xgb):
     """Plot the convergence
 
     Todo: parameterize this so it's agnostic to the metric.
-    Todo: save out to dir_ouc 
+    Todo: save out to dir_ouc
     """
 
     # https://setscholars.net/wp-content/uploads/2019/02/visualise-XgBoost-model-with-learning-curves-in-Python.html
@@ -170,9 +168,6 @@ def plot_convergence(xgb):
 
 
 def SHAP(xgb_model, X_train, Y_train):
-    xgb_params = {"learning_rate": 0.01, "objective": "reg:squarederror"}
-    xgb_dat = xgboost.DMatrix(X_train.values, label=Y_train.values)
-    model = xgboost.train(xgb_params, xgb_dat, 100)
     explainer = shap.TreeExplainer(xgb_model)
     shap_values = explainer.shap_values(X_train)
 

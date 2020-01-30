@@ -1,7 +1,5 @@
-import logging
 import os
 import glob
-import time
 import itertools
 
 import pandas as pd
@@ -21,7 +19,7 @@ def get_list_of_team_abbrs():
         teams = Teams()
         teams_df = teams.dataframes
         abbr = list(teams_df.abbreviation.values)
-    except:
+    except Exception as ex:
         abbr = [
             "MIL",
             "LAC",
@@ -54,6 +52,7 @@ def get_list_of_team_abbrs():
             "BOS",
             "CLE",
         ]
+        print(ex)
     return sorted(abbr)
 
 

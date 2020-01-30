@@ -16,7 +16,7 @@ def pull(start=2020, end=2020):
     """Data pull. Specify start and end year."""
     dir_out = os.path.join(config.get("dir", "raw"), config.get("date", "today"))
     os.makedirs(dir_out, exist_ok=True)
-    state = flow_pull.run(
+    flow_pull.run(
         parameters={"dir_out": dir_out, "from_year": start, "thru_year": end}
     )
 
@@ -24,9 +24,9 @@ def pull(start=2020, end=2020):
 def proc(nrows: int = None, past: int = None):
     """Process the pulled data
 
-    Process historical data: 
-    python main.py proc --past 1 
-    
+    Process historical data:
+    python main.py proc --past 1
+
     Process 2020 data:
     python main.py proc
     """
@@ -34,7 +34,7 @@ def proc(nrows: int = None, past: int = None):
         filename = "historical"
     else:
         filename = "yr2020"
-    state = flow_proc.run(parameters={"nrows": nrows, "filename": filename})
+    flow_proc.run(parameters={"nrows": nrows, "filename": filename})
 
 
 def results():
@@ -47,10 +47,10 @@ def rmarkdown():
 
 def run(d=1, p=1, o=1, r=1):
     """Do a daily run
-    d: int 
+    d: int
         download
     p: process
-    o: output - scores and gets accuracy 
+    o: output - scores and gets accuracy
     r: rmarkdown
     """
     if d == 1:
@@ -66,5 +66,5 @@ def run(d=1, p=1, o=1, r=1):
 if __name__ == "__main__":
     # python main.py run
     fire.Fire(
-        {"pull": pull, "proc": proc, "results": results, "rmd": rmarkdown, "run": run,}
+        {"pull": pull, "proc": proc, "results": results, "rmd": rmarkdown, "run": run}
     )

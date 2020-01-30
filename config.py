@@ -26,6 +26,7 @@ config.targets = ["result", "pg_score1", "pg_score2", "pg_spread"]
 
 # Season Model score columns
 
+
 # OTHER UTILS------
 def save(obj, dir, filename, ext=".jb", main=True, date=True):
     """If today=True then it'll save it in a folder.

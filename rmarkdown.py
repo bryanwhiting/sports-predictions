@@ -3,7 +3,6 @@
 import os
 from git import Repo
 from config import config
-from prefect import task
 from prefect import task, Flow
 
 

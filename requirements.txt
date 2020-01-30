@@ -10,3 +10,4 @@ pandas
 numpy
 graphviz
 sportsreference
+shap

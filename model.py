@@ -27,6 +27,8 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 # pip install scikit-learn==0.18.2 - required for shap compatibility
 import sklearn
 import shap
+from matplotlib import pyplot
+import matplotlib.pyplot as plt
 
 
 def fit_model(
@@ -153,12 +155,10 @@ def plot_convergence(xgb):
     Todo: parameterize this so it's agnostic to the metric.
     Todo: save out to dir_ouc 
     """
-    from matplotlib import pyplot
-    import matplotlib.pyplot as plt
 
     # https://setscholars.net/wp-content/uploads/2019/02/visualise-XgBoost-model-with-learning-curves-in-Python.html
     plt.style.use("ggplot")
-    results = final_mod.evals_result()
+    results = xgb.evals_result()
     epochs = len(results["validation_0"]["error"])
     x_axis = range(0, epochs)
 
@@ -169,11 +169,11 @@ def plot_convergence(xgb):
     ax.legend()
 
 
-def SHAP():
+def SHAP(xgb_model, X_train, Y_train):
     xgb_params = {"learning_rate": 0.01, "objective": "reg:squarederror"}
     xgb_dat = xgboost.DMatrix(X_train.values, label=Y_train.values)
     model = xgboost.train(xgb_params, xgb_dat, 100)
-    explainer = shap.TreeExplainer(model)
+    explainer = shap.TreeExplainer(xgb_model)
     shap_values = explainer.shap_values(X_train)
 
     # View SHAP results

@@ -13,8 +13,8 @@ config.read(os.path.join(dir_root, "rsc/config.cfg"))
 
 # Update
 dir_of_this_file = str(pathlib.Path(__file__).parent.absolute())
-config.set('dir', 'home', dir_of_this_file)
-print(config.get('dir', 'home'))
+config.set("dir", "home", dir_of_this_file)
+print(config.get("dir", "home"))
 
 # Dates
 config.add_section("date")

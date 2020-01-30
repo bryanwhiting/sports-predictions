@@ -2,8 +2,8 @@
 
 import os
 from git import Repo
-from prefect import task
 from config import config
+from prefect import task
 from prefect import task, Flow
 
 

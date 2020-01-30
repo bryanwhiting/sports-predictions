@@ -1,0 +1,12 @@
+# requirements.txt
+xgboost
+prefect
+prefect[viz]
+scikit-learn
+gitpython
+matplotlib
+joblib
+pandas
+numpy
+graphviz
+sportsreference

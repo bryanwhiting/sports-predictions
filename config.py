@@ -1,9 +1,8 @@
 import os
+import pathlib
 import joblib
 from configparser import ConfigParser
 from datetime import datetime
-import pandas
-import xgboost
 
 today = datetime.now().strftime("%Y-%m-%d")
 
@@ -11,6 +10,11 @@ today = datetime.now().strftime("%Y-%m-%d")
 config = ConfigParser(default_section="default")
 dir_root = os.path.expanduser("~/github/sports-predictions")
 config.read(os.path.join(dir_root, "rsc/config.cfg"))
+
+# Update
+dir_of_this_file = str(pathlib.Path(__file__).parent.absolute())
+config.set('dir', 'home', dir_of_this_file)
+print(config.get('dir', 'home'))
 
 # Dates
 config.add_section("date")

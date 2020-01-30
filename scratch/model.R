@@ -1,4 +1,4 @@
-# Fix the datetime logic in the 
+# Fix the datetime logic in the
 
 install.load::install_load('tidyverse', 'dplyr', 'caret')
 df <- read_csv("data/proc/2020-01-09/mrd.csv")

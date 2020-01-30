@@ -11,3 +11,6 @@ numpy
 graphviz
 sportsreference
 shap
+
+# dev
+pre-commit

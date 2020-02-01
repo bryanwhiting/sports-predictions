@@ -1,6 +1,17 @@
 name: Python application
 
-on: [push]
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  # schedule: https://help.github.com/en/actions/automating-your-workflow-with-github-actions/events-that-trigger-workflows#scheduled-events-schedule
+  schedule:
+    - cron: '0 */4 * * *'
 
 jobs:
   build:
@@ -9,6 +20,20 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - uses: r-lib/actions/setup-r@v1
+      with:
+        r-version: '3.5.1'
+    - name: Build R env
+      run: |
+        Rscript -e 'install.packages(c("install.load", "rmarkdown"))'  
+    - name: Checkout Sports Site
+      run: |
+        git clone https://github.com/bryanwhiting/sports.git site
+        ls -alF
+#       uses: actions/checkout@v2
+#       with:
+#         repository: bryanwhiting/sports
+    
     - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:

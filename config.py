@@ -3,6 +3,7 @@ import pathlib
 import joblib
 from configparser import ConfigParser
 from datetime import datetime
+import pandas
 
 today = datetime.now().strftime("%Y-%m-%d")
 dir_root = str(pathlib.Path(__file__).parent.absolute())
@@ -27,7 +28,7 @@ config.targets = ["result", "pg_score1", "pg_score2", "pg_spread"]
 
 
 # OTHER UTILS------
-def save(obj, dir, filename, ext=".jb", main=True, date=True):
+def save(obj, dir, filename, ext=".jb", main=True, date=True, site=False):
     """If today=True then it'll save it in a folder.
     Otherwise it'll save a copy to the main"""
     today = datetime.now().strftime("%Y-%m-%d")
@@ -51,6 +52,12 @@ def save(obj, dir, filename, ext=".jb", main=True, date=True):
             joblib.dump(obj, filename=fp, compress=3)
         else:
             obj.to_csv(fp, index=False)
+
+    if site:
+        if not isinstance(obj, pandas.DataFrame):
+            raise ValueError("Can only write pandas df to site folder")
+        fp = os.path.join(_dir, fn)
+        obj.to_csv(fp, index=False)
     print("Saved to ", fp)
 
 

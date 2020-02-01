@@ -25,15 +25,20 @@ jobs:
         r-version: '3.5.1'
     - name: Build R env
       run: |
-        Rscript -e 'install.packages(c("install.load", "rmarkdown"))'  
+        Rscript -e 'install.packages(c("install.load", "rmarkdown"))'
     - name: Checkout Sports Site
       run: |
         git clone https://github.com/bryanwhiting/sports.git site
         ls -alF
+        cd site
+        date > runtime.txt
+        git add runtime.txt
+        git commit -am "Starting build"
+        git push
 #       uses: actions/checkout@v2
 #       with:
 #         repository: bryanwhiting/sports
-    
+
     - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:
@@ -57,6 +62,22 @@ jobs:
       run: |
         pip install pytest
         pytest
-    - name: Test data pull
+    - name: Data pull (main.py pull 2020 data)
       run: |
         python main.py pull
+    - name: Data Process (main.py proc)
+      run: |
+        python main.py proc
+    - name: Score and compile results (main.py results)
+      run: |
+        python main.py results
+    - name: Build site (main.py rmd)
+      run: |
+        python main.py rmd
+    - name: Push site
+      run: |
+        cd site
+        git status
+        git add .
+        git commit -am "Scheduled build"
+        git push

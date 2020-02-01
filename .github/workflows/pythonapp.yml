@@ -26,10 +26,13 @@ jobs:
     - name: Build R env
       run: |
         Rscript -e 'install.packages(c("install.load", "rmarkdown"))'  
-    - name: Checkout Site
-      uses: actions/checkout@v2
-      with:
-        repository: bryanwhiting/sports
+    - name: Checkout Sports Site
+      run: |
+        git clone https://github.com/bryanwhiting/sports.git site
+        ls -alF
+#       uses: actions/checkout@v2
+#       with:
+#         repository: bryanwhiting/sports
     
     - name: Set up Python 3.7
       uses: actions/setup-python@v1

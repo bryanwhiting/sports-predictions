@@ -39,7 +39,7 @@ def results():
     flow_output.run()
 
 
-def rmarkdown():
+def rmd():
     flow_rmd.run()
 
 
@@ -58,11 +58,9 @@ def run(d=1, p=1, o=1, r=1):
     if o == 1:
         results()
     if r == 1:
-        rmarkdown()
+        rmd()
 
 
 if __name__ == "__main__":
     # python main.py run
-    fire.Fire(
-        {"pull": pull, "proc": proc, "results": results, "rmd": rmarkdown, "run": run}
-    )
+    fire.Fire({"pull": pull, "proc": proc, "results": results, "rmd": rmd, "run": run})

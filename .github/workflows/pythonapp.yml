@@ -25,7 +25,7 @@ jobs:
         r-version: '3.5.1'
     - name: Build R env
       run: |
-        Rscript -e 'install.packages(c("install.load", "rmarkdown")'  
+        Rscript -e 'install.packages(c("install.load", "rmarkdown"))'  
     - name: Checkout Site
       uses: actions/checkout@v2
       with:

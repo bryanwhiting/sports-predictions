@@ -58,6 +58,8 @@ jobs:
 
     - name: Install R packages
       run: |
+        # for curl package "libcurl not found"
+        sudo apt-get -y install libcurl4-openssl-dev pkg-config
         cd site
         R -e 'install.packages("renv")'
         R -e 'renv::restore()'

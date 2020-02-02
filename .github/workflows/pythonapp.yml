@@ -1,4 +1,4 @@
-name: Python application
+name: Run Sports-Prediction Pipeline
 
 on:
   # Trigger the workflow on push or pull request,
@@ -110,9 +110,10 @@ jobs:
     - name: Install R packages
       run: |
         cd site
-        R -e 'install.packages("renv")'
-        R -e 'renv::restore()'
-        R -e 'rmarkdown::render_site("index.Rmd")'
+        Rscript -e 'install.packages("renv")'
+        Rscript -e 'renv::restore()'
+        Rscript -e 'renv::diagnostics()'
+        Rscript -e 'rmarkdown::render_site("index.Rmd")'
         cd
     
     # BUILD SITE -----------------------------------------

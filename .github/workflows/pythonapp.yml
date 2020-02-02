@@ -58,8 +58,10 @@ jobs:
 
     - name: Install R packages
       run: |
-        R -e 'install.packages("site/renv")'
+        cd site
+        R -e 'install.packages("renv")'
         R -e 'renv::restore()'
+        cd
     
 #     - name: Build R env
 #       run: |

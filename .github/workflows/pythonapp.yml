@@ -49,10 +49,22 @@ jobs:
         pandoc-version: '2.7.3' # The pandoc version to download (if necessary) and use.
     - run: echo "# Test" | pandoc -t html
     
-    - name: Build R env
+    - name: Cache Renv packages
+      uses: actions/cache@v1
+      with:
+        path: $HOME/.local/share/renv
+        key: r-${{ hashFiles('site/renv.lock') }}
+        restore-keys: r-
+
+    - name: Install R packages
       run: |
-        Rscript -e 'install.packages(c("install.load", "rmarkdown", "distill"))'
-        Rscript -e "install.load::install_load('dplyr', 'tidyverse', 'ggplot2', 'leaflet', 'kableExtra', 'flexdashboard', 'shiny', 'magrittr', 'lubridate', 'formattable')"
+        R -e 'install.packages("site/renv")'
+        R -e 'renv::restore()'
+    
+#     - name: Build R env
+#       run: |
+#         Rscript -e 'install.packages(c("install.load", "rmarkdown", "distill"))'
+#         Rscript -e "install.load::install_load('dplyr', 'tidyverse', 'ggplot2', 'leaflet', 'kableExtra', 'flexdashboard', 'shiny', 'magrittr', 'lubridate', 'formattable')"
     - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:

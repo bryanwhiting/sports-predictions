@@ -22,8 +22,6 @@ jobs:
     steps:
     - name: Checkout Python Code
       uses: actions/checkout@v2
-
-    
     
     - name: git clone sports site
       run: |
@@ -32,10 +30,10 @@ jobs:
         git clone https://${GHTOKEN}@github.com/bryanwhiting/sports.git site
         ls -alF
         cd site
-        date > runtime.txt
-        git add runtime.txt
-        git commit -am "Starting build"
-        git push
+        #date > runtime.txt
+        #git add runtime.txt
+        #git commit -am "Starting build"
+        #git push
         cd
       env:
         GHTOKEN: ${{ secrets.GHTOKEN }}
@@ -44,14 +42,8 @@ jobs:
     - uses: r-lib/actions/setup-pandoc@v1
       with:
         pandoc-version: '2.7.3' # The pandoc version to download (if necessary) and use.
-    - run: echo "# Test" | pandoc -t html
+    #- run: echo "# Test" | pandoc -t html
     
-    
-    
-#     - name: Build R env
-#       run: |
-#         Rscript -e 'install.packages(c("install.load", "rmarkdown", "distill"))'
-#         Rscript -e "install.load::install_load('dplyr', 'tidyverse', 'ggplot2', 'leaflet', 'kableExtra', 'flexdashboard', 'shiny', 'magrittr', 'lubridate', 'formattable')"
     - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:
@@ -88,6 +80,7 @@ jobs:
         ls -alF
         ls -alF site
         git status
+        
     - name: Build site (main.py rmd)
       run: |
         # R -e 'renv::restore()'
@@ -101,19 +94,26 @@ jobs:
     - name: Cache Renv packages
       uses: actions/cache@v1
       with:
-        path: $HOME/.local/share/renv
-        key: r-${{ hashFiles('site/renv.lock') }}
-        restore-keys: r-
+        path: ~/.local/share/renv
+        key: renv-${{ hashFiles('site/renv.lock') }}
+        restore-keys: |
+          renv-
+
+    - name: ubuntu packages
+      run: sudo apt-get -y install libcurl4-openssl-dev pkg-config
 
     - name: Install R packages
       run: |
         # for curl package "libcurl not found"
-        sudo apt-get -y install libcurl4-openssl-dev pkg-config
         cd site
         R -e 'install.packages("renv")'
         R -e 'renv::restore()'
         R -e 'rmarkdown::render_site("index.Rmd")'
         cd
+#     - name: Build R env
+#       run: |
+#         Rscript -e 'install.packages(c("install.load", "rmarkdown", "distill"))'
+#         Rscript -e "install.load::install_load('dplyr', 'tidyverse', 'ggplot2', 'leaflet', 'kableExtra', 'flexdashboard', 'shiny', 'magrittr', 'lubridate', 'formattable')"
     
     - name: Manual Build
       run: |
@@ -121,6 +121,7 @@ jobs:
         R -e 'renv::restore()'
         R -e 'rmarkdown::render_site("index.Rmd")'
         cd
+        
     - name: Push site
       run: |
         cd site

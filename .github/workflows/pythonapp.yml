@@ -28,13 +28,18 @@ jobs:
         Rscript -e 'install.packages(c("install.load", "rmarkdown"))'
     - name: Checkout Sports Site
       run: |
-        git clone https://github.com/bryanwhiting/sports.git site
+        git config --global user.email "actions@github.com"
+        git config --local user.name "GitHub Action"
+        git clone https://${GHTOKEN}@github.com/bryanwhiting/sports.git site
         ls -alF
         cd site
         date > runtime.txt
         git add runtime.txt
         git commit -am "Starting build"
         git push
+        cd
+      env:
+        GHTOKEN: ${{ secrets.GHTOKEN }}
 #       uses: actions/checkout@v2
 #       with:
 #         repository: bryanwhiting/sports

@@ -107,11 +107,13 @@ jobs:
         git status
     - name: Build site (main.py rmd)
       run: |
+        R -e 'renv::restore()'
         python main.py rmd
     - name: Manual Build
       run: |
         cd site
-        Rscript -e 'rmarkdown::render_site("index.Rmd")'
+        R -e 'renv::restore()'
+        R -e 'rmarkdown::render_site("index.Rmd")'
         cd
     - name: Push site
       run: |

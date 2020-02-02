@@ -52,6 +52,7 @@ jobs:
     - name: Build R env
       run: |
         Rscript -e 'install.packages(c("install.load", "rmarkdown", "distill"))'
+        Rscript -e "install.load::install_load('dplyr', 'tidyverse', 'ggplot2', 'leaflet', 'kableExtra', 'flexdashboard', 'shiny', 'magrittr', 'lubridate', 'formattable')"
     - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:

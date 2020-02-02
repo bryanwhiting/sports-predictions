@@ -43,10 +43,10 @@ jobs:
         GHTOKEN: ${{ secrets.GHTOKEN }}
     
     # https://github.com/r-lib/actions/blob/master/examples/blogdown.yaml
-    - name: Install pandoc and pandoc citeproc
-      run: |
-        brew install pandoc
-        brew install pandoc-citeproc
+    - uses: r-lib/actions/setup-pandoc@v1
+      with:
+        pandoc-version: '2.7.3' # The pandoc version to download (if necessary) and use.
+    - run: echo "# Test" | pandoc -t html
     
     - name: Build R env
       run: |

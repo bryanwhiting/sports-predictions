@@ -42,7 +42,7 @@ jobs:
 #         repository: bryanwhiting/sports
     - name: Build R env
       run: |
-        Rscript -e 'install.packages(c("install.load", "rmarkdown"))'
+        Rscript -e 'install.packages(c("install.load", "rmarkdown", "distill"))'
     - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:

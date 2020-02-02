@@ -23,10 +23,7 @@ jobs:
     - name: Checkout Python Code
       uses: actions/checkout@v2
 
-    - name: Set up R 
-      uses: r-lib/actions/setup-r@v1
-      with:
-        r-version: '3.6.2'
+    
     
     - name: git clone sports site
       run: |
@@ -49,21 +46,7 @@ jobs:
         pandoc-version: '2.7.3' # The pandoc version to download (if necessary) and use.
     - run: echo "# Test" | pandoc -t html
     
-    - name: Cache Renv packages
-      uses: actions/cache@v1
-      with:
-        path: $HOME/.local/share/renv
-        key: r-${{ hashFiles('site/renv.lock') }}
-        restore-keys: r-
-
-    - name: Install R packages
-      run: |
-        # for curl package "libcurl not found"
-        sudo apt-get -y install libcurl4-openssl-dev pkg-config
-        cd site
-        R -e 'install.packages("renv")'
-        R -e 'renv::restore()'
-        cd
+    
     
 #     - name: Build R env
 #       run: |
@@ -107,8 +90,31 @@ jobs:
         git status
     - name: Build site (main.py rmd)
       run: |
-        R -e 'renv::restore()'
+        # R -e 'renv::restore()'
         python main.py rmd
+    
+    - name: Set up R 
+      uses: r-lib/actions/setup-r@v1
+      with:
+        r-version: '3.6.2'
+    
+    - name: Cache Renv packages
+      uses: actions/cache@v1
+      with:
+        path: $HOME/.local/share/renv
+        key: r-${{ hashFiles('site/renv.lock') }}
+        restore-keys: r-
+
+    - name: Install R packages
+      run: |
+        # for curl package "libcurl not found"
+        sudo apt-get -y install libcurl4-openssl-dev pkg-config
+        cd site
+        R -e 'install.packages("renv")'
+        R -e 'renv::restore()'
+        R -e 'rmarkdown::render_site("index.Rmd")'
+        cd
+    
     - name: Manual Build
       run: |
         cd site

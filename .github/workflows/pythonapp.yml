@@ -16,8 +16,8 @@ on:
 jobs:
   build:
 
-    #runs-on: ubuntu-latest
-    runs-on: macOS-latest
+    runs-on: ubuntu-latest
+    #runs-on: macOS-latest
 
     steps:
     - name: Checkout Python Code
@@ -86,13 +86,21 @@ jobs:
         python main.py results
     - run: |
         ls -alF
+        ls -alF site
         git status
     - name: Build site (main.py rmd)
       run: |
         python main.py rmd
+    - name: Manual Build
+      run: |
+        cd site
+        Rscript -e 'rmarkdown::render_site("index.Rmd")'
+        cd
     - name: Push site
       run: |
         cd site
+        ls -alF
+        ls -alF docs
         git status
         git add .
         git commit -am "Scheduled build"

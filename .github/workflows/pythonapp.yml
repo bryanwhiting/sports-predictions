@@ -44,7 +44,8 @@ jobs:
         pandoc-version: '2.7.3' # The pandoc version to download (if necessary) and use.
     #- run: echo "# Test" | pandoc -t html
     
-    - uses: actions/cache@v1
+    - name: Cache Python Packages
+      uses: actions/cache@v1
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
@@ -55,44 +56,40 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: 3.7
+        
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+    
+    # TESTING -----------------------------------------
     - name: Lint with flake8
       run: |
         pip install flake8
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=./scratch/
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=./scratch/  
     - name: Test with black
       run: |
         pip install black
-        black --check *.py
+        black --check *.py  
     - name: Test with pytest
       run: |
         pip install pytest
         pytest
+   
+    # RUN PIPELINE -----------------------------------------
     - name: Data pull (main.py pull 2020 data)
-      run: |
-        python main.py pull
+      run: python main.py pull 
     - name: Data Process (main.py proc)
-      run: |
-        python main.py proc
+      run: python main.py proc
     - name: Score and compile results (main.py results)
-      run: |
-        python main.py results
-    - run: |
-        ls -alF
-        ls -alF site
-        git status
-        
-    - name: Build site (main.py rmd)
-      run: |
-        # R -e 'renv::restore()'
-        python main.py rmd
+      run: python main.py results        
+    - name: Copy results to site (main.py rmd). Rscript will fail, but files will copy.
+      run: python main.py rmd
     
+    # DOWNLOAD R -----------------------------------------
     - name: Set up R 
       uses: r-lib/actions/setup-r@v1
       with:
@@ -105,23 +102,20 @@ jobs:
         key: renv-${{ hashFiles('site/renv.lock') }}
         restore-keys: |
           renv-
-
+    
+    # for curl package "libcurl not found"
     - name: ubuntu packages
       run: sudo apt-get -y install libcurl4-openssl-dev pkg-config
 
     - name: Install R packages
       run: |
-        # for curl package "libcurl not found"
         cd site
         R -e 'install.packages("renv")'
         R -e 'renv::restore()'
         R -e 'rmarkdown::render_site("index.Rmd")'
         cd
-#     - name: Build R env
-#       run: |
-#         Rscript -e 'install.packages(c("install.load", "rmarkdown", "distill"))'
-#         Rscript -e "install.load::install_load('dplyr', 'tidyverse', 'ggplot2', 'leaflet', 'kableExtra', 'flexdashboard', 'shiny', 'magrittr', 'lubridate', 'formattable')"
     
+    # BUILD SITE -----------------------------------------
     - name: Manual Build
       run: |
         cd site

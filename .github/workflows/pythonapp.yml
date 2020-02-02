@@ -44,6 +44,13 @@ jobs:
         pandoc-version: '2.7.3' # The pandoc version to download (if necessary) and use.
     #- run: echo "# Test" | pandoc -t html
     
+    - uses: actions/cache@v1
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
     - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:

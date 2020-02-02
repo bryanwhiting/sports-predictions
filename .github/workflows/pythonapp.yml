@@ -16,7 +16,8 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    #runs-on: ubuntu-latest
+    runs-on: macOS-latest
 
     steps:
     - name: Checkout Python Code
@@ -74,15 +75,18 @@ jobs:
       run: |
         pip install pytest
         pytest
-#     - name: Data pull (main.py pull 2020 data)
-#       run: |
-#         python main.py pull
-#     - name: Data Process (main.py proc)
-#       run: |
-#         python main.py proc
-#     - name: Score and compile results (main.py results)
-#       run: |
-#         python main.py results
+    - name: Data pull (main.py pull 2020 data)
+      run: |
+        python main.py pull
+    - name: Data Process (main.py proc)
+      run: |
+        python main.py proc
+    - name: Score and compile results (main.py results)
+      run: |
+        python main.py results
+    - run: |
+        ls -alF
+        git status
     - name: Build site (main.py rmd)
       run: |
         python main.py rmd

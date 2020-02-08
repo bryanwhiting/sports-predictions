@@ -1,5 +1,8 @@
+import pandas as pd
 from sportsreference.nba.teams import Teams
 from sportsreference.nba.schedule import Schedule
+import os
+from config import config
 
 # For a team:
 gsw = Schedule("GSW", year=2018)
@@ -22,7 +25,6 @@ for team in teams:
 
 
 # Read in the scraped data
-import pandas as pd
 
 df = pd.read_csv("~/Desktop/historical_dataframe.csv")
 
@@ -70,9 +72,14 @@ for i in range(len(df)):
     if df.iloc[i].year == 2019 and df.iloc[i + 1].year == 2015:
         idx_abbr += 1
 
-import os
-from config import config
 
 dir_out = os.path.join(config.get("dir", "raw"), "20200109")
 os.makedirs(dir_out, exist_ok=True)
 df.to_csv(os.path.join(dir_out, "historical.csv"), index=False)
+
+
+# Scrape the team names
+html = "https://en.wikipedia.org/wiki/Wikipedia:WikiProject_National_Basketball_Association/ \
+National_Basketball_Association_team_abbreviations"
+df = pd.read_html(html)[0]
+df.to_csv("~/Desktop/nbanames.csv")

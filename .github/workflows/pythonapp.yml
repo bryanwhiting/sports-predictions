@@ -22,7 +22,7 @@ jobs:
     steps:
     - name: Checkout Python Code
       uses: actions/checkout@v2
-    
+
     - name: git clone sports site
       run: |
         git config --global user.email "actions@github.com"
@@ -37,13 +37,13 @@ jobs:
         cd
       env:
         GHTOKEN: ${{ secrets.GHTOKEN }}
-    
+
     # https://github.com/r-lib/actions/blob/master/examples/blogdown.yaml
     - uses: r-lib/actions/setup-pandoc@v1
       with:
         pandoc-version: '2.7.3' # The pandoc version to download (if necessary) and use.
     #- run: echo "# Test" | pandoc -t html
-    
+
     - name: Cache Python Packages
       uses: actions/cache@v1
       with:
@@ -51,17 +51,17 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
-          
+
     - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:
         python-version: 3.7
-        
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    
+
     # TESTING -----------------------------------------
     - name: Lint with flake8
       run: |
@@ -69,32 +69,36 @@ jobs:
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=./scratch/  
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=./scratch/
     - name: Test with black
       run: |
         pip install black
-        black --check *.py  
+        black --check *.py
     - name: Test with pytest
       run: |
         pip install pytest
         pytest
-   
+
     # RUN PIPELINE -----------------------------------------
     - name: Data pull (main.py pull 2020 data)
-      run: python main.py pull 
+      run: python main.py pull
     - name: Data Process (main.py proc)
       run: python main.py proc
+
+      # Copies data from output to site/data
     - name: Score and compile results (main.py results)
-      run: python main.py results        
-    - name: Copy results to site (main.py rmd). Rscript will fail, but files will copy.
-      run: python main.py rmd
-    
+      run: python main.py results
+
+      #  You only run this step on the local machine:
+    # - name: Copy results to site (main.py rmd). Rscript will fail, but files will copy.
+      # run: python main.py rmd
+
     # DOWNLOAD R -----------------------------------------
-    - name: Set up R 
+    - name: Set up R
       uses: r-lib/actions/setup-r@v1
       with:
         r-version: '3.6.2'
-    
+
     - name: Cache Renv packages
       uses: actions/cache@v1
       with:
@@ -102,7 +106,7 @@ jobs:
         key: renv-${{ hashFiles('site/renv.lock') }}
         restore-keys: |
           renv-
-    
+
     # for curl package "libcurl not found"
     - name: ubuntu packages
       run: sudo apt-get -y install libcurl4-openssl-dev pkg-config
@@ -115,7 +119,7 @@ jobs:
         Rscript -e 'renv::diagnostics()'
         Rscript -e 'rmarkdown::render_site("index.Rmd")'
         cd
-    
+
     # BUILD SITE -----------------------------------------
     - name: Manual Build
       run: |
@@ -123,7 +127,7 @@ jobs:
         R -e 'renv::restore()'
         R -e 'rmarkdown::render_site("index.Rmd")'
         cd
-        
+
     - name: Push site
       run: |
         cd site

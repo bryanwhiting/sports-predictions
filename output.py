@@ -10,6 +10,8 @@ produce markdown
     - Group by season_week, calculate accuracy for all model types.
 
 """
+import os
+import shutil
 from config import config, save, load
 import pandas as pd
 import numpy as np
@@ -185,18 +187,20 @@ def benchmark_model_accuracy(df):
     # Compare Nate Silver's results
     models = ["elo", "carm-elo", "raptor"]
     for model in models:
-        df[f"pred_{model}"] = (df[f"{model}_prob1"] > 0.5).astype("int")
+        df[f"pred_{model}_prob1"] = (df[f"{model}_prob1"] > 0.5).astype("int")
         acc = breakdown_accuracy(
             df,
             result="result",
             proba=f"{model}_prob1",
-            pred=f"pred_{model}",
+            pred=f"pred_{model}_prob1",
             name=model,
         )
         df_acc = df_acc.append(acc)
 
         # Save out binary accuracy for groupby-accuracy by season_week later
-        df[f"acc_pred_{model}"] = (df[f"pred_{model}"] == df["result"]).astype("int")
+        df[f"acc_pred_{model}_prob1"] = (
+            df[f"pred_{model}_prob1"] == df["result"]
+        ).astype("int")
 
     # reset index because rownames contain the accuracy breakdowns
     df_acc = df_acc.transpose().fillna("").reset_index()
@@ -240,7 +244,7 @@ def week_accuracies(df):
         filename="acc_within_week",
         ext=".csv",
         main=True,
-        date=True,
+        date=False,
     )
     save(
         df_upto_week,
@@ -248,7 +252,7 @@ def week_accuracies(df):
         filename="acc_upto_week",
         ext=".csv",
         main=True,
-        date=True,
+        date=False,
     )
     save(
         df_since_week,
@@ -256,7 +260,7 @@ def week_accuracies(df):
         filename="acc_since_week",
         ext=".csv",
         main=True,
-        date=True,
+        date=False,
     )
 
     # return (df_within_week, df_upto_week)
@@ -289,6 +293,134 @@ def save_scores(df):
     save(df_out, dir="output", filename="all_scores", ext=".csv", main=True, date=False)
 
 
+def get_538_standings(freq=True):
+    """Pull down the rankings from 538"""
+    df_stand = pd.read_html(
+        "https://projects.fivethirtyeight.com/2020-nba-predictions/"
+    )[0]
+
+    df_stand.columns = df_stand.columns.get_level_values(0)
+    df_stand.columns = [
+        "elo",
+        "x",
+        "x",
+        "team",
+        "conf",
+        "rating_season",
+        "record_proj_538_raptor",
+        "proj_pt_diff",
+        "prob_playoff",
+        "rating_playoffs",
+        "prob_finals",
+        "prob_win_final",
+        "x",
+        "x",
+    ]
+    df_stand = df_stand[[c for c in df_stand.columns if c != "x"]]
+
+    # Extract just the team name
+    df_stand["name"] = df_stand["team"].str.extract("(^.*[a-z]+)[0-9]+-")
+    df_stand["538_curr_record"] = df_stand["team"].str.extract("^.*[a-z]+([0-9]+-.*)")
+    # Add the win_pct
+    if freq:
+        # CURRENT RECORD
+        win = df_stand["team"].str.extract("^.*[a-z]+([0-9]+)-.*").astype("int")
+        loss = df_stand["team"].str.extract("^.*[a-z]+[0-9]+-([0-9]+)").astype("int")
+        pct = round(win / (win + loss) * 100).astype("int").astype("str")
+        df_stand["pct"] = " (" + pct + "%)"
+        df_stand["538_curr_record"] = df_stand["538_curr_record"] + df_stand["pct"]
+
+        # PROJ 538 RECORD (copied )
+        win = (
+            df_stand["record_proj_538_raptor"].str.extract("^([0-9]+)-.*").astype("int")
+        )
+        loss = (
+            df_stand["record_proj_538_raptor"]
+            .str.extract("^[0-9]+-([0-9]+)")
+            .astype("int")
+        )
+        pct = round(win / (win + loss) * 100).astype("int").astype("str")
+        df_stand["pct"] = " (" + pct + "%)"
+        df_stand["record_proj_538_raptor"] = (
+            df_stand["record_proj_538_raptor"] + df_stand["pct"]
+        )
+
+    # There is a lot in this table: elo, conf, rating_season
+    df_stand = df_stand[["name", "record_proj_538_raptor", "538_curr_record"]]
+
+    # Get abbrv for merging
+    df_names = pd.read_csv(config.get("dir", "names"))[["team", "name"]]
+    df_stand = df_stand.merge(df_names, on="name")
+    return df_stand
+
+
+def create_record(df, pred_col, freq=True):
+    """Takes a prediction column and calculates projected record
+
+    TODO: add datetime so you can show a graph of which game they'll win
+    """
+    x = df[df[pred_col].notnull()][["team1", "team2", pred_col]].copy()
+    # rename columns
+    x.columns = ["team1", "team2", "pred1"]
+    x["pred1"] = x["pred1"].astype("int")
+    x["pred2"] = (x["pred1"] == 0).astype("int")
+    # split data into team1 and team2 to have wins/losses long
+    team1 = x[["team1", "pred1"]].rename({"team1": "team", "pred1": "pred"}, axis=1)
+    team2 = x[["team2", "pred2"]].rename({"team2": "team", "pred2": "pred"}, axis=1)
+    teams = team1.append(team2)
+    # Calculate record
+    teams = teams.groupby(["team"]).agg({"pred": ["sum", "count"]}).reset_index()
+    # Calculate win/loss
+    teams.columns = teams.columns.get_level_values(0)
+    teams.columns = ["team", "wins", "n"]
+    teams = teams.assign(
+        losses=lambda x: x.n - x.wins,
+        freq=lambda x: round(x.wins / (x.n) * 100).astype("int").astype("str"),
+        record=lambda x: x.wins.astype("str") + "-" + x.losses.astype("str"),
+    )
+    if freq:
+        teams.record = teams.record + " (" + teams.freq + "%)"
+    teams = teams[["team", "record"]].rename({"record": "record_" + pred_col}, axis=1)
+    return teams
+
+
+def all_records(df_scored2, freq):
+    # columns for prediction
+    pred_cols = [c for c in df_scored2.columns if c.startswith("pred_")]
+    cols = ["team1", "team2", "result", "datetime"] + pred_cols
+    df_preds = df_scored2[cols].copy()
+    df_preds.loc[df_preds.datetime > config.get("date", "today"), "result"] = None
+
+    # calculate record
+    df_records = create_record(df_preds, pred_col="result", freq=freq)
+    # conditionally replace the prediction columns
+    for c in pred_cols:
+        df_preds[c] = np.where(df_preds.result.isna(), df_preds[c], df_preds.result)
+        df_rec = create_record(df_preds, pred_col=c, freq=freq)
+        df_records = df_records.merge(df_rec, on="team")
+
+    # Join 538
+    # Get 538 standings
+    df_538_stand = get_538_standings(freq=freq)
+    df_records = df_records.merge(df_538_stand, on="team")
+
+    # Sanity check on the record (to make sure calculated correctly with 538)
+    equals = len(
+        df_records[df_records["record_result"] != df_records["538_curr_record"]]
+    )
+    if equals != 0:
+        print(
+            "WARNING: Your RECORD calculation does not equals 538's. Using 538 instead."
+        )
+        df_records["record_result"] = df_records["538_curr_record"]
+
+    order_cols = ["team", "name"]
+    df_records = df_records[
+        order_cols + [c for c in df_records.columns if c not in order_cols]
+    ]
+    return df_records
+
+
 @task
 def main():
     df = df_with_538()
@@ -298,10 +430,31 @@ def main():
     # pandas groupby means
     _ = week_accuracies(df_scored2)
 
+    df_records = all_records(df_scored2, freq=True)
+
     # Save out
     save_scores(df_scored)
 
-    save(df_acc, dir="output", filename="acc_overall", ext=".csv", main=True, date=True)
+    save(
+        df_acc, dir="output", filename="acc_overall", ext=".csv", main=True, date=False
+    )
+    save(
+        df_records, dir="output", filename="records", ext=".csv", main=True, date=False
+    )
+
+
+@task
+def copy_data():
+    # Ignore subdirectories
+    src_dir = config.get("dir", "output")
+    out_dir = os.path.join(config.get("dir", "site"), "data")
+    os.makedirs(out_dir, exist_ok=True)
+    files = [f for f in os.listdir(src_dir) if f.endswith(".csv")]
+    for f in files:
+        src_path = os.path.join(src_dir, f)
+        out_path = os.path.join(out_dir, f)
+        print("Copying from:", src_path, " to:", out_path)
+        shutil.copy(src_path, out_path)
 
 
 with Flow("Build Output") as flow_output:
@@ -311,6 +464,7 @@ with Flow("Build Output") as flow_output:
     # That, and I like putting breakpoints in the main to see
     # how data are passed from one task to another
     m = main()
+    c = copy_data(upstream_tasks=[m])
 
 
 if __name__ == "__main__":

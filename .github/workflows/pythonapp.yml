@@ -11,7 +11,7 @@ on:
       - master
   # schedule: https://help.github.com/en/actions/automating-your-workflow-with-github-actions/events-that-trigger-workflows#scheduled-events-schedule
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 11 * * *'
 
 jobs:
   build:

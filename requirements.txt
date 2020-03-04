@@ -1,5 +1,5 @@
 # requirements.txt
-xgboost
+xgboost==0.90
 prefect
 prefect[viz]
 scikit-learn

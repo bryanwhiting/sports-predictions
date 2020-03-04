@@ -94,6 +94,11 @@ jobs:
       #  You only run this step on the local machine:
     # - name: Copy results to site (main.py rmd). Rscript will fail, but files will copy.
       # run: python main.py rmd
+    - name: Check outout
+      run: |
+        ls -alF data/proc
+        ls -alF output
+        ls -alF site/data
 
     # DOWNLOAD R -----------------------------------------
     - name: Set up R
